@@ -1,0 +1,8 @@
+{
+  "name": "Voice Notes & Translator",
+  "description": "Record your thoughts, get instant AI-polished notes, and translate them into multiple languages with voice playback. Supports Lao, Khmer, Vietnamese, and Thai.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}

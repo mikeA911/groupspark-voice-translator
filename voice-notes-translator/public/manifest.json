@@ -1,0 +1,21 @@
+{
+  "name": "AI Voice Notes & Translator",
+  "short_name": "Voice Notes",
+  "description": "Record your thoughts, get instant AI-polished notes, and translate them into multiple languages with voice playback.",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#121212",
+  "background_color": "#121212",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

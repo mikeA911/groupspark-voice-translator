@@ -1,10 +1,13 @@
 # Netlify configuration for GroupSpark Voice Notes Translator
 
 [build]
+  # Base directory where the source code lives
+  base = "client"
+  
   # Build command - install dependencies first, then build
   command = "npm install && npm run build"
   
-  # Directory to publish
+  # Directory to publish (relative to base directory)
   publish = "dist"
 
 # Environment variables (you'll set these in Netlify dashboard)

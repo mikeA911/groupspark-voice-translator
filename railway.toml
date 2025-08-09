@@ -1,0 +1,9 @@
+[build]
+# Build from the server directory
+workingDir = "server"
+
+[deploy]
+# Start command for production
+startCommand = "npm start"
+# Working directory for deployment
+workingDir = "server"

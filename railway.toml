@@ -1,8 +1,11 @@
 [build]
-# Use Dockerfile in server directory
+# Force Docker build from server directory only
 dockerfile = "server/Dockerfile"
 dockerContext = "server"
 
 [deploy]
-# Railway will use the Dockerfile CMD
 restartPolicyType = "always"
+
+[experimental]
+# Disable auto-detection
+configFilePath = "server"

@@ -1,9 +1,8 @@
 [build]
-# Build only the server directory, ignore workspace
-workingDir = "server"
-buildCommand = "npm install --production"
+# Use Dockerfile in server directory
+dockerfile = "server/Dockerfile"
+dockerContext = "server"
 
-[deploy] 
-# Deploy only the server
-startCommand = "node src/server.js"
-workingDir = "server"
+[deploy]
+# Railway will use the Dockerfile CMD
+restartPolicyType = "always"

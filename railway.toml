@@ -1,9 +1,9 @@
 [build]
-# Build from the server directory
+# Build only the server directory, ignore workspace
 workingDir = "server"
+buildCommand = "npm install --production"
 
-[deploy]
-# Start command for production
-startCommand = "npm start"
-# Working directory for deployment
+[deploy] 
+# Deploy only the server
+startCommand = "node src/server.js"
 workingDir = "server"

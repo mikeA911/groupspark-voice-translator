@@ -19,7 +19,7 @@ router.get('/', asyncHandler(async (req, res) => {
   // Get active products for the homepage
   const { data: products, error } = await supabase
     .from('products')
-    .select('*')
+    .select('id, name, description, status, icon, created_at')
     .eq('status', 'active')
     .order('created_at', { ascending: false });
 
@@ -54,6 +54,7 @@ router.get('/', asyncHandler(async (req, res) => {
         .products { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
         .product-card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: transform 0.3s; }
         .product-card:hover { transform: translateY(-5px); }
+        .product-icon { width: 64px; height: 64px; object-fit: contain; margin-bottom: 1rem; border-radius: 8px; }
         .product-card h3 { color: #667eea; margin-bottom: 1rem; }
         .product-card p { margin-bottom: 1.5rem; color: #666; }
         .features { background: #f8f9fa; }
@@ -125,6 +126,7 @@ router.get('/', asyncHandler(async (req, res) => {
             <div class="products">
                 ${productsData.map(product => `
                     <div class="product-card ${product.status === 'coming_soon' ? 'coming-soon' : ''}">
+                        ${product.icon ? `<img src="${product.icon}" alt="${product.name} icon" class="product-icon">` : ''}
                         <h3>${product.name}</h3>
                         <p>${product.description}</p>
                         ${product.status === 'active' ? 
@@ -218,7 +220,9 @@ router.get('/products', asyncHandler(async (req, res) => {
         .section { padding: 60px 0; }
         .products { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; }
         .product-card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .product-card h3 { color: #667eea; margin-bottom: 1rem; font-size: 1.5rem; }
+        .product-icon { width: 80px; height: 80px; object-fit: contain; margin-bottom: 1rem; border-radius: 8px; }
+        .product-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+        .product-card h3 { color: #667eea; margin-bottom: 0; font-size: 1.5rem; }
         .product-card p { margin-bottom: 1.5rem; color: #666; }
         .btn { display: inline-block; background: #667eea; color: white; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 600; }
         .btn:hover { background: #5a6fd8; }
@@ -260,9 +264,14 @@ router.get('/products', asyncHandler(async (req, res) => {
             <div class="products">
                 ${productsData.map(product => `
                     <div class="product-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                            <h3>${product.name}</h3>
-                            <span class="status status-${product.status.replace('_', '-')}">${product.status.replace('_', ' ')}</span>
+                        <div class="product-header">
+                            ${product.icon ? `<img src="${product.icon}" alt="${product.name} icon" class="product-icon">` : ''}
+                            <div style="flex: 1;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h3>${product.name}</h3>
+                                    <span class="status status-${product.status.replace('_', '-')}">${product.status.replace('_', ' ')}</span>
+                                </div>
+                            </div>
                         </div>
                         <p>${product.description}</p>
                         
@@ -385,7 +394,9 @@ router.get('/buy-credits', asyncHandler(async (req, res) => {
         #card-element { padding: 12px; border: 1px solid #ddd; border-radius: 5px; background: white; }
         .card-errors { color: #dc3545; margin-top: 10px; }
         footer { background: #333; color: white; text-align: center; padding: 2rem 0; margin-top: 3rem; }
-        .product-info { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; }
+        .product-info { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; }
+        .product-info-icon { width: 64px; height: 64px; object-fit: contain; border-radius: 8px; }
+        .product-info-text { flex: 1; }
         .loading { opacity: 0.7; pointer-events: none; }
         .success { background: #d4edda; color: #155724; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; }
         .error { background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; }
@@ -420,8 +431,11 @@ router.get('/buy-credits', asyncHandler(async (req, res) => {
             
             ${selectedProduct ? `
                 <div class="product-info">
-                    <h3>${selectedProduct.name}</h3>
-                    <p>${selectedProduct.description}</p>
+                    ${selectedProduct.icon ? `<img src="${selectedProduct.icon}" alt="${selectedProduct.name} icon" class="product-info-icon">` : ''}
+                    <div class="product-info-text">
+                        <h3>${selectedProduct.name}</h3>
+                        <p>${selectedProduct.description}</p>
+                    </div>
                 </div>
                 
                 <h3>Choose a Credit Package:</h3>

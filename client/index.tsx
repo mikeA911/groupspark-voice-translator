@@ -7,6 +7,46 @@
 import {GoogleGenAI} from '@google/genai';
 import {marked} from 'marked';
 
+// Simple i18n translations
+const translations = {
+  'en': {
+    'settings.title': 'Settings',
+    'settings.uiLanguage': 'Interface Language',
+    'settings.uiLanguageHelp': 'Language for the user interface',
+    'settings.recordingLanguage': 'Record Language', 
+    'settings.recordingLanguageHelp': 'Select the language you\'ll be speaking in your recordings',
+    'settings.translationLanguages': 'Translation Languages',
+    'settings.translationLanguagesHelp': 'Select which languages to show as translation options',
+    'settings.save': 'Save Settings',
+    'buttons.cancel': 'Cancel',
+    'buttons.save': 'Save'
+  },
+  'lo': {
+    'settings.title': 'ການຕັ້ງຄ່າ',
+    'settings.uiLanguage': 'ພາສາສ່ວນຕິດຕໍ່ຜູ້ໃຊ້',
+    'settings.uiLanguageHelp': 'ພາສາສຳລັບສ່ວນຕິດຕໍ່ຜູ້ໃຊ້',
+    'settings.recordingLanguage': 'ພາສາບັນທຶກ',
+    'settings.recordingLanguageHelp': 'ເລືອກພາສາທີ່ທ່ານຈະເວົ້າໃນການບັນທຶກ',
+    'settings.translationLanguages': 'ພາສາການແປ',
+    'settings.translationLanguagesHelp': 'ເລືອກພາສາທີ່ຈະສະແດງເປັນຕົວເລືອກການແປ',
+    'settings.save': 'ບັນທຶກການຕັ້ງຄ່າ',
+    'buttons.cancel': 'ຍົກເລີກ',
+    'buttons.save': 'ບັນທຶກ'
+  },
+  'km': {
+    'settings.title': 'ការកំណត់',
+    'settings.uiLanguage': 'ភាសាចំនុចប្រទាក់',
+    'settings.uiLanguageHelp': 'ភាសាសម្រាប់ចំនុចប្រទាក់អ្នកប្រើ',
+    'settings.recordingLanguage': 'ភាសាថត',
+    'settings.recordingLanguageHelp': 'ជ្រើសរើសភាសាដែលអ្នកនឹងនិយាយក្នុងការថត',
+    'settings.translationLanguages': 'ភាសាបកប្រែ',
+    'settings.translationLanguagesHelp': 'ជ្រើសរើសភាសាដែលត្រូវបង្ហាញជាជម្រើសបកប្រែ',
+    'settings.save': 'រក្សាទុកការកំណត់',
+    'buttons.cancel': 'បោះបង់',
+    'buttons.save': 'រក្សាទុក'
+  }
+};
+
 const MODEL_NAME = 'gemini-2.5-flash';
 const DB_NAME = 'VoiceNotesDB';
 const DB_VERSION = 3;
@@ -243,6 +283,10 @@ class VoiceNotesApp {
 
   // Credit system integration
   private creditIntegration: any = null;
+  
+  // UI Language support
+  private currentUILanguage: 'en' | 'lo' | 'km' = 'en';
+  private uiLanguageSelect: HTMLSelectElement | null = null;
 
   constructor() {
     this.db = new DBHelper();
@@ -369,6 +413,12 @@ class VoiceNotesApp {
   private async init(): Promise<void> {
       await this.db.init();
       
+      // Load saved UI language
+      const savedUILanguage = localStorage.getItem('ui_language') as 'en' | 'lo' | 'km';
+      if (savedUILanguage && ['en', 'lo', 'km'].includes(savedUILanguage)) {
+        this.currentUILanguage = savedUILanguage;
+      }
+      
       // Initialize credit system integration after a short delay
       // This allows the credit system to initialize first
       setTimeout(() => {
@@ -408,6 +458,8 @@ class VoiceNotesApp {
     }
 
     this.initSettings();
+    this.initUILanguageSelector();
+    this.updateUILanguage();
     this.bindEventListeners();
     this.initTheme();
 
@@ -585,6 +637,69 @@ class VoiceNotesApp {
     this.renderRecordLanguageSelect();
     this.renderLanguageCheckboxes();
     this.renderTranslationButtons();
+  }
+  
+  private initUILanguageSelector() {
+    const container = document.getElementById('uiLanguageSelector');
+    if (!container) {
+      console.warn('UI language selector container not found');
+      return;
+    }
+
+    // Create language selector
+    const label = document.createElement('label');
+    label.htmlFor = 'ui-language-select';
+    label.className = 'language-selector-label';
+    label.textContent = 'Interface Language';
+
+    this.uiLanguageSelect = document.createElement('select');
+    this.uiLanguageSelect.id = 'ui-language-select';
+    this.uiLanguageSelect.className = 'language-selector-dropdown';
+
+    // Add language options
+    const languages = [
+      { code: 'en', name: 'English' },
+      { code: 'lo', name: 'ລາວ (Lao)' },
+      { code: 'km', name: 'ខ្មែរ (Khmer)' }
+    ];
+
+    languages.forEach(lang => {
+      const option = document.createElement('option');
+      option.value = lang.code;
+      option.textContent = lang.name;
+      if (lang.code === this.currentUILanguage) {
+        option.selected = true;
+      }
+      this.uiLanguageSelect!.appendChild(option);
+    });
+
+    // Add event listener
+    this.uiLanguageSelect.addEventListener('change', (e) => {
+      const target = e.target as HTMLSelectElement;
+      this.currentUILanguage = target.value as 'en' | 'lo' | 'km';
+      localStorage.setItem('ui_language', this.currentUILanguage);
+      this.updateUILanguage();
+    });
+
+    container.appendChild(label);
+    container.appendChild(this.uiLanguageSelect);
+  }
+
+  private updateUILanguage() {
+    // Update all elements with data-i18n attributes
+    const elements = document.querySelectorAll('[data-i18n]');
+    elements.forEach(element => {
+      const key = element.getAttribute('data-i18n');
+      if (key && translations[this.currentUILanguage] && translations[this.currentUILanguage][key]) {
+        element.textContent = translations[this.currentUILanguage][key];
+      }
+    });
+
+    // Update language selector label if it exists
+    const label = document.querySelector('.language-selector-label');
+    if (label && translations[this.currentUILanguage]['settings.uiLanguage']) {
+      label.textContent = translations[this.currentUILanguage]['settings.uiLanguage'];
+    }
   }
 
   private renderRecordLanguageSelect() {

@@ -72,26 +72,32 @@
     <div id="settingsModal" class="settings-modal-overlay hidden">
       <div class="settings-modal-content">
         <div class="settings-modal-header">
-          <h2>Settings</h2>
+          <h2 data-i18n="settings.title">Settings</h2>
         </div>
         <div class="settings-modal-body">
-          <h3>Record Language</h3>
-          <p>Select the language you'll be speaking in your recordings:</p>
+          <h3 data-i18n="settings.uiLanguage">Interface Language</h3>
+          <p data-i18n="settings.uiLanguageHelp">Language for the user interface</p>
+          <div class="setting-section">
+            <div id="uiLanguageSelector"></div>
+          </div>
+
+          <h3 data-i18n="settings.recordingLanguage">Record Language</h3>
+          <p data-i18n="settings.recordingLanguageHelp">Select the language you'll be speaking in your recordings:</p>
           <div class="setting-section">
             <select id="recordLanguageSelect" class="record-language-select">
               <!-- Options will be dynamically inserted here -->
             </select>
           </div>
           
-          <h3>Translation Languages</h3>
-          <p>Select which languages to show as translation options.</p>
+          <h3 data-i18n="settings.translationLanguages">Translation Languages</h3>
+          <p data-i18n="settings.translationLanguagesHelp">Select which languages to show as translation options.</p>
           <div id="settingsLanguageList" class="language-options-grid">
             <!-- Checkboxes will be dynamically inserted here -->
           </div>
         </div>
         <div class="settings-modal-footer">
-          <button id="settingsCancelButton" class="settings-cancel-button">Cancel</button>
-          <button id="settingsSaveButton" class="settings-save-button">Save</button>
+          <button id="settingsCancelButton" class="settings-cancel-button" data-i18n="buttons.cancel">Cancel</button>
+          <button id="settingsSaveButton" class="settings-save-button" data-i18n="settings.save">Save</button>
         </div>
       </div>
     </div>

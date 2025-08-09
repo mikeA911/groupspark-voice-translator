@@ -2,8 +2,10 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { asyncHandler, ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 import { paymentRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import PaymentService from '../services/PaymentService.js';
 import { supabase, supabaseAdmin, querySupabase, executeRPC } from '../config/supabase.js';
+import { getUserPreferences, updateUserPreferences, getSupportedLanguages } from '../controllers/preferencesController.js';
 
 const router = express.Router();
 
@@ -370,5 +372,34 @@ router.get('/stats', asyncHandler(async (req, res) => {
     });
   }
 }));
+
+/**
+ * User Preferences Routes
+ */
+
+/**
+ * GET /api/preferences
+ * Get current user's preferences (requires authentication)
+ */
+router.get('/preferences', requireAuth, asyncHandler(getUserPreferences));
+
+/**
+ * PUT /api/preferences
+ * Update current user's preferences (requires authentication)
+ */
+router.put('/preferences', 
+  requireAuth,
+  [
+    body('ui_language').optional().isString().withMessage('UI language must be a string'),
+    body('preferences').optional().isObject().withMessage('Preferences must be an object'),
+  ],
+  asyncHandler(updateUserPreferences)
+);
+
+/**
+ * GET /api/supported-languages
+ * Get supported UI languages (public endpoint)
+ */
+router.get('/supported-languages', asyncHandler(getSupportedLanguages));
 
 export default router;

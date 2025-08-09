@@ -1,36 +1,25 @@
 {
-  "name": "groupspark-platform",
+  "name": "groupspark-backend",
   "version": "1.0.0",
-  "description": "GroupSpark - Multi-product platform with credit system",
+  "description": "GroupSpark Backend - Node.js Express API Server",
   "type": "module",
-  "private": true,
-  "workspaces": [
-    "client",
-    "server"
-  ],
-  "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd client && npm run dev",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "cd client && npm run build",
-    "build:server": "cd server && npm run build",
-    "start": "cd server && npm start",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "db:setup": "cd server && npm run db:migrate && npm run db:seed",
-    "test": "cd server && npm test",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+  "main": "server/src/server.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.0",
-    "eslint": "^8.45.0"
+  "scripts": {
+    "start": "cd server && node src/server.js",
+    "dev": "cd server && npm run dev",
+    "install:server": "cd server && npm install",
+    "test": "cd server && npm test"
   },
   "keywords": [
+    "nodejs",
+    "express",
+    "api",
     "groupspark",
-    "ai",
-    "credits",
-    "platform",
-    "payments"
+    "backend"
   ],
   "author": "GroupSpark",
   "license": "MIT"

@@ -1,12 +1,20 @@
-[phases.build]
-dependsOn = []
-
-[phases.install]
-dependsOn = ['build']
-cmds = ['cd server && npm install --production']
-
-[phases.start]
-cmd = 'cd server && npm start'
+[providers]
+nodejs = "18"
 
 [variables]
-NODE_ENV = 'production'
+NODE_ENV = "production"
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm-9_x"]
+
+[phases.install]
+cmds = [
+  "cd server",
+  "npm ci --production --no-audit --no-fund"
+]
+
+[phases.build]
+cmds = ["echo 'No build step needed'"]
+
+[start]
+cmd = "cd server && node src/server.js"

@@ -1,11 +1,12 @@
 [build]
-# Force Docker build from server directory only
-dockerfile = "server/Dockerfile"
-dockerContext = "server"
+# Monorepo: build only from server directory
+builder = "nixpacks"
+buildCommand = "cd server && npm install --production"
 
 [deploy]
-restartPolicyType = "always"
+# Deploy from server directory
+startCommand = "cd server && node src/server.js"
 
-[experimental]
-# Disable auto-detection
-configFilePath = "server"
+[build.environment]
+# Force Node.js environment
+NIXPACKS_NODE_VERSION = "18"

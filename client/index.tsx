@@ -6,8 +6,9 @@
 
 import {GoogleGenAI} from '@google/genai';
 import {marked} from 'marked';
+import { i18n } from './src/i18n-vanilla';
 
-// Simple i18n translations
+// Simple i18n translations - DEPRECATED: Use ./src/i18n-vanilla.ts instead
 const translations = {
   'en': {
     'settings.title': 'Settings',
@@ -243,6 +244,7 @@ class VoiceNotesApp {
   private rawVoicePlayer: HTMLDivElement;
   private rawVoicePlayButton: HTMLButtonElement;
   private recordingInfo: HTMLSpanElement;
+  private progressBar: HTMLDivElement;
   private progressFill: HTMLDivElement;
   private currentTimeDisplay: HTMLSpanElement;
   private totalTimeDisplay: HTMLSpanElement;
@@ -250,16 +252,16 @@ class VoiceNotesApp {
   private voicePlayerMessage: HTMLDivElement;
   private currentAudio: HTMLAudioElement | null = null;
   
-  // Pre-flight check elements
-  private preflightCheckOverlay: HTMLDivElement;
-  private preflightSpinner: HTMLDivElement;
-  private preflightMessage: HTMLDivElement;
-  private preflightInstructions: HTMLDivElement;
-  private preflightControls: HTMLDivElement;
-  private preflightRetryButton: HTMLButtonElement;
-  private preflightProceedButton: HTMLButtonElement;
-  private voiceDebugList: HTMLDivElement;
+  // Startup screen elements
+  private startupScreen: HTMLDivElement;
+  private imageContainer: HTMLDivElement;
+  private currentImage: HTMLImageElement;
+  private aboutOverlay: HTMLDivElement;
+  private aboutBackButton: HTMLButtonElement;
+  private aboutIconButton: HTMLButtonElement;
   private appContainer: HTMLDivElement;
+  private currentImageIndex: number = 0;
+  private images: string[] = ['ikeJ.png', 'ikeT.png'];
   
   // Settings
   private settingsButton: HTMLButtonElement;
@@ -287,6 +289,9 @@ class VoiceNotesApp {
   // UI Language support
   private currentUILanguage: 'en' | 'lo' | 'km' = 'en';
   private uiLanguageSelect: HTMLSelectElement | null = null;
+  
+  // Swipe handling
+  private swipeInProgress: boolean = false;
 
   constructor() {
     this.db = new DBHelper();
@@ -294,30 +299,24 @@ class VoiceNotesApp {
     this.appContainer = document.querySelector(
       '.app-container',
     ) as HTMLDivElement;
-    this.preflightCheckOverlay = document.getElementById(
-      'preflightCheck',
+    this.startupScreen = document.getElementById(
+      'startupScreen',
     ) as HTMLDivElement;
-    this.preflightSpinner = this.preflightCheckOverlay.querySelector(
-      '.preflight-spinner',
+    this.imageContainer = document.getElementById(
+      'imageContainer',
     ) as HTMLDivElement;
-    this.preflightMessage = document.getElementById(
-      'preflightMessage',
+    this.currentImage = document.getElementById(
+      'currentImage',
+    ) as HTMLImageElement;
+    this.aboutOverlay = document.getElementById(
+      'aboutOverlay',
     ) as HTMLDivElement;
-    this.preflightInstructions = document.getElementById(
-      'preflightInstructions',
-    ) as HTMLDivElement;
-    this.preflightControls = document.getElementById(
-      'preflightControls',
-    ) as HTMLDivElement;
-    this.preflightRetryButton = document.getElementById(
-      'preflightRetryButton',
+    this.aboutBackButton = document.getElementById(
+      'aboutBackButton',
     ) as HTMLButtonElement;
-    this.preflightProceedButton = document.getElementById(
-      'preflightProceedButton',
+    this.aboutIconButton = document.getElementById(
+      'aboutIconButton',
     ) as HTMLButtonElement;
-    this.voiceDebugList = document.getElementById(
-      'voiceDebugList',
-    ) as HTMLDivElement;
 
     this.recordButton = document.getElementById(
       'recordButton',
@@ -374,6 +373,7 @@ class VoiceNotesApp {
     this.rawVoicePlayer = document.getElementById('rawVoicePlayer') as HTMLDivElement;
     this.rawVoicePlayButton = document.getElementById('rawVoicePlayButton') as HTMLButtonElement;
     this.recordingInfo = document.getElementById('recordingInfo') as HTMLSpanElement;
+    this.progressBar = document.querySelector('.progress-bar') as HTMLDivElement;
     this.progressFill = document.getElementById('progressFill') as HTMLDivElement;
     this.currentTimeDisplay = document.getElementById('currentTime') as HTMLSpanElement;
     this.totalTimeDisplay = document.getElementById('totalTime') as HTMLSpanElement;
@@ -413,10 +413,18 @@ class VoiceNotesApp {
   private async init(): Promise<void> {
       await this.db.init();
       
-      // Load saved UI language
+      // Initialize i18n system
+      i18n.init();
+      
+      // Load saved UI language or default to English
       const savedUILanguage = localStorage.getItem('ui_language') as 'en' | 'lo' | 'km';
       if (savedUILanguage && ['en', 'lo', 'km'].includes(savedUILanguage)) {
         this.currentUILanguage = savedUILanguage;
+        i18n.changeLanguage(savedUILanguage);
+      } else {
+        // Default to English for new users
+        this.currentUILanguage = 'en';
+        i18n.changeLanguage('en');
       }
       
       // Initialize credit system integration after a short delay
@@ -425,7 +433,7 @@ class VoiceNotesApp {
         this.initializeCreditIntegration();
       }, 1000);
       
-      this.runVoicePreflightCheck();
+      this.initializeStartupScreen();
   }
 
   private initializeCreditIntegration(): void {
@@ -470,7 +478,7 @@ class VoiceNotesApp {
       });
 
     this.createNewNote();
-    this.recordingStatus.textContent = 'Ready to record';
+    this.recordingStatus.textContent = i18n.t('status.readyToRecord');
   }
 
   private getVoicesAsync(): Promise<SpeechSynthesisVoice[]> {
@@ -524,94 +532,265 @@ class VoiceNotesApp {
     });
   }
 
-  private async runVoicePreflightCheck(): Promise<void> {
-    console.log('[DEBUG] Running voice pre-flight check...');
-    this.preflightMessage.textContent = 'Checking for required voice packs...';
-    this.preflightSpinner.classList.remove('hidden');
-    this.preflightInstructions.classList.add('hidden');
-    this.preflightControls.classList.add('hidden');
-    this.voiceDebugList.classList.add('hidden');
+  private initializeStartupScreen(): void {
+    console.log('[DEBUG] Initializing startup screen...');
+    
+    // Initialize voices in background for speech synthesis
+    this.getVoicesAsync().then(voices => {
+      this.voices = voices;
+      console.log(`[DEBUG] Found ${voices.length} system voices.`);
+    });
+    
+    // Setup event listeners for startup screen
+    this.bindStartupEventListeners();
+  }
 
-    this.voices = await this.getVoicesAsync();
-    console.log(`[DEBUG] Found ${this.voices.length} system voices.`);
+  private bindStartupEventListeners(): void {
+    // Click handler to navigate to record page (only if no swipe detected)
+    let clickTimeout: number | null = null;
+    this.imageContainer.addEventListener('click', () => {
+      // Delay click action to allow swipe detection to complete
+      clickTimeout = window.setTimeout(() => {
+        if (!this.swipeInProgress) {
+          this.proceedToApp();
+        }
+      }, 100);
+    });
 
-    const voiceListHTML = this.voices.length > 0
-        ? `<strong>Detected Voices:</strong>\n` + this.voices.map(v => `- ${v.name} (${v.lang})`).join('\n')
-        : '<strong>No speech voices detected by the browser.</strong>';
-    this.voiceDebugList.innerHTML = `<pre>${voiceListHTML}</pre>`;
-    this.voiceDebugList.classList.remove('hidden');
+    // About back button handler
+    this.aboutBackButton.addEventListener('click', () => {
+      this.hideAboutPage();
+    });
 
-    const hasAnyVoice = ALL_LANGUAGES.some(lang => this.hasVoiceFor(SUPPORTED_LANGUAGES[lang]));
-    console.log(`[DEBUG] Has at least one required voice: ${hasAnyVoice}`);
+    // Touch/swipe handling
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
 
-    if (hasAnyVoice) {
-      this.proceedToApp();
-    } else {
-      this.showPreflightPrompt();
+    // Touch events for mobile devices
+    this.imageContainer.addEventListener('touchstart', (e) => {
+      if (clickTimeout) {
+        clearTimeout(clickTimeout);
+        clickTimeout = null;
+      }
+      
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+      this.swipeInProgress = false;
+    }, { passive: true });
+
+    this.imageContainer.addEventListener('touchmove', (e) => {
+      if (startX === 0) return;
+      
+      const deltaX = e.touches[0].clientX - startX;
+      const deltaY = e.touches[0].clientY - startY;
+      
+      // Detect swipe (either horizontal or vertical movement)
+      if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
+        this.swipeInProgress = true;
+        e.preventDefault(); // Prevent scrolling
+      }
+    }, { passive: false });
+
+    this.imageContainer.addEventListener('touchend', (e) => {
+      if (startX === 0) return;
+
+      const deltaX = e.changedTouches[0].clientX - startX;
+      const deltaY = e.changedTouches[0].clientY - startY;
+      const timeElapsed = Date.now() - startTime;
+      
+      // Check for valid swipe: minimum distance, not too slow
+      const horizontalDistance = Math.abs(deltaX);
+      const verticalDistance = Math.abs(deltaY);
+      const notTooSlow = timeElapsed < 1000;
+      
+      if ((horizontalDistance > 40 || verticalDistance > 40) && notTooSlow) {
+        this.swipeInProgress = true;
+        e.preventDefault();
+        
+        // Determine swipe direction - prioritize the larger movement
+        if (horizontalDistance > verticalDistance) {
+          // Horizontal swipe
+          if (deltaX > 0) {
+            this.handleSwipeRight();
+          } else {
+            this.handleSwipeLeft();
+          }
+        } else {
+          // Vertical swipe
+          if (deltaY > 0) {
+            this.handleSwipeDown();
+          } else {
+            this.handleSwipeUp();
+          }
+        }
+      }
+      
+      // Reset values
+      startX = 0;
+      startY = 0;
+      startTime = 0;
+      
+      // Reset swipe flag after a short delay
+      setTimeout(() => {
+        this.swipeInProgress = false;
+      }, 200);
+    }, { passive: false });
+
+    // Mouse events for desktop (with touch device detection)
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    if (!isTouchDevice) {
+      let mouseDown = false;
+      
+      this.imageContainer.addEventListener('mousedown', (e) => {
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+          clickTimeout = null;
+        }
+        
+        startX = e.clientX;
+        startY = e.clientY;
+        startTime = Date.now();
+        mouseDown = true;
+        this.swipeInProgress = false;
+        e.preventDefault();
+      });
+
+      this.imageContainer.addEventListener('mousemove', (e) => {
+        if (!mouseDown || startX === 0) return;
+        
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        
+        if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
+          this.swipeInProgress = true;
+        }
+      });
+
+      this.imageContainer.addEventListener('mouseup', (e) => {
+        if (!mouseDown) return;
+        
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        const timeElapsed = Date.now() - startTime;
+        
+        const horizontalDistance = Math.abs(deltaX);
+        const verticalDistance = Math.abs(deltaY);
+        const notTooSlow = timeElapsed < 1000;
+        
+        if ((horizontalDistance > 40 || verticalDistance > 40) && notTooSlow) {
+          this.swipeInProgress = true;
+          e.preventDefault();
+          
+          if (horizontalDistance > verticalDistance) {
+            if (deltaX > 0) {
+              this.handleSwipeRight();
+            } else {
+              this.handleSwipeLeft();
+            }
+          } else {
+            if (deltaY > 0) {
+              this.handleSwipeDown();
+            } else {
+              this.handleSwipeUp();
+            }
+          }
+        }
+        
+        mouseDown = false;
+        startX = 0;
+        startY = 0;
+        startTime = 0;
+        
+        setTimeout(() => {
+          this.swipeInProgress = false;
+        }, 200);
+      });
+      
+      // Handle mouse leave to reset state
+      this.imageContainer.addEventListener('mouseleave', () => {
+        mouseDown = false;
+        startX = 0;
+        startY = 0;
+        startTime = 0;
+      });
     }
+  }
+
+  private handleSwipeRight(): void {
+    // Navigate to next image
+    this.currentImageIndex = (this.currentImageIndex + 1) % this.images.length;
+    this.currentImage.classList.add('slide-left');
+    
+    setTimeout(() => {
+      this.currentImage.src = this.images[this.currentImageIndex];
+      this.currentImage.classList.remove('slide-left');
+    }, 150);
+  }
+
+  private handleSwipeLeft(): void {
+    // Show about page
+    this.showAboutPage();
+  }
+
+  private handleSwipeUp(): void {
+    // Navigate to previous image
+    this.currentImageIndex = (this.currentImageIndex - 1 + this.images.length) % this.images.length;
+    this.currentImage.classList.add('slide-up');
+    
+    setTimeout(() => {
+      this.currentImage.src = this.images[this.currentImageIndex];
+      this.currentImage.classList.remove('slide-up');
+    }, 150);
+  }
+
+  private handleSwipeDown(): void {
+    // Navigate to next image
+    this.currentImageIndex = (this.currentImageIndex + 1) % this.images.length;
+    this.currentImage.classList.add('slide-down');
+    
+    setTimeout(() => {
+      this.currentImage.src = this.images[this.currentImageIndex];
+      this.currentImage.classList.remove('slide-down');
+    }, 150);
+  }
+
+  private showAboutPage(): void {
+    this.aboutOverlay.classList.add('active');
+  }
+
+  private hideAboutPage(): void {
+    this.aboutOverlay.classList.remove('active');
   }
 
   private proceedToApp(): void {
     console.log('[DEBUG] Proceeding to main application.');
-    this.preflightCheckOverlay.style.opacity = '0';
-    this.preflightCheckOverlay.addEventListener('transitionend', () => {
-      this.preflightCheckOverlay.style.display = 'none';
+    this.startupScreen.style.opacity = '0';
+    this.startupScreen.addEventListener('transitionend', () => {
+      this.startupScreen.style.display = 'none';
     }, { once: true });
 
     this.appContainer.classList.remove('initially-hidden');
     this.initializeApp();
   }
 
-  private showPreflightPrompt(): void {
-    this.preflightSpinner.classList.add('hidden');
-    this.preflightMessage.textContent = 'Voice Packs Recommended';
-
-    const languageList = ALL_LANGUAGES.join(', ');
-
-    const instructions = `
-        <p>To enable text-to-speech for translations, please install a voice for at least one of the supported languages: <strong>${languageList}</strong>.</p>
-        <h4>Windows</h4>
-        <p>Go to <code>Settings > Time & Language > Language & region</code>, and add the desired language pack.</p>
-        <h4>macOS</h4>
-        <p>Go to <code>System Settings > Accessibility > Spoken Content > System Voice</code>, and download the desired voices.</p>
-        <h4>iOS / iPadOS</h4>
-        <p>Go to <code>Settings > Accessibility > Spoken Content > Voices</code>, and download the voices for the desired languages.</p>
-        <h4>Android</h4>
-        <p>Go to <code>Settings > Accessibility > Text-to-speech output</code>. Tap the gear icon for your preferred engine (e.g., Speech Services by Google), then select <code>Install voice data</code> and choose the desired languages.</p>
-        <p>After installation, click 'Retry'. You can also proceed without voice playback.</p>
-    `;
-
-    this.preflightInstructions.innerHTML = instructions;
-    this.preflightInstructions.classList.remove('hidden');
-    this.preflightControls.classList.remove('hidden');
-
-    if (!this.preflightRetryButton.dataset.listener) {
-      this.preflightRetryButton.addEventListener('click', () => {
-        console.log('[DEBUG] "Retry" button clicked.');
-        this.runVoicePreflightCheck();
-      });
-      this.preflightRetryButton.dataset.listener = 'true';
-    }
-
-    if (!this.preflightProceedButton.dataset.listener) {
-      this.preflightProceedButton.addEventListener('click', () => {
-        console.log('[DEBUG] "Proceed Anyway" button clicked.');
-        this.proceedToApp();
-      });
-      this.preflightProceedButton.dataset.listener = 'true';
-    }
-  }
-
   private bindEventListeners(): void {
     this.recordButton.addEventListener('click', () => this.toggleRecording());
     this.newButton.addEventListener('click', () => this.createNewNote());
     this.themeToggleButton.addEventListener('click', () => this.toggleTheme());
+    this.aboutIconButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.showAboutPage();
+    });
 
     this.playRecordingButton.addEventListener('click', () => this.handlePlayRecording());
     
     // Raw Voice Player event listeners
     this.rawVoicePlayButton.addEventListener('click', () => this.toggleVoicePlayback());
     this.volumeSlider.addEventListener('input', () => this.updateVolume());
+    this.progressBar.addEventListener('click', (e) => this.handleProgressBarClick(e));
     
     this.settingsButton.addEventListener('click', () => this.openSettings());
     this.settingsSaveButton.addEventListener('click', () => this.saveAndCloseSettings());
@@ -678,6 +857,9 @@ class VoiceNotesApp {
       const target = e.target as HTMLSelectElement;
       this.currentUILanguage = target.value as 'en' | 'lo' | 'km';
       localStorage.setItem('ui_language', this.currentUILanguage);
+      // Use the new i18n system for immediate updates
+      i18n.changeLanguage(this.currentUILanguage);
+      // Keep old system for backward compatibility
       this.updateUILanguage();
     });
 
@@ -700,6 +882,11 @@ class VoiceNotesApp {
     if (label && translations[this.currentUILanguage]['settings.uiLanguage']) {
       label.textContent = translations[this.currentUILanguage]['settings.uiLanguage'];
     }
+
+    // Dispatch language changed event for other components
+    window.dispatchEvent(new CustomEvent('languageChanged', {
+      detail: { language: this.currentUILanguage }
+    }));
   }
 
   private renderRecordLanguageSelect() {
@@ -750,8 +937,8 @@ class VoiceNotesApp {
       // Filter to ensure only valid languages are loaded
       this.selectedLanguages = parsed.filter(lang => ALL_LANGUAGES.includes(lang));
     } else {
-      // Default to all languages
-      this.selectedLanguages = [...ALL_LANGUAGES];
+      // Default to only Khmer and Lao for new users
+      this.selectedLanguages = ['Khmer', 'Lao'];
     }
 
     const savedRecordLanguage = localStorage.getItem('recordLanguage');
@@ -852,7 +1039,7 @@ class VoiceNotesApp {
     const userTitle = prompt('Note title:', this.editorTitle.textContent || defaultTitle);
     if (userTitle === null) {
       // User cancelled
-      this.recordingStatus.textContent = 'Save cancelled';
+      this.recordingStatus.textContent = i18n.t('status.cancelled');
       return;
     }
 
@@ -869,7 +1056,7 @@ class VoiceNotesApp {
     try {
         const id = await this.db.saveNote(this.currentNote);
         this.currentNote.id = id;
-        this.recordingStatus.textContent = 'Note saved successfully!';
+        this.recordingStatus.textContent = i18n.t('status.saved');
         
         // Give user time to see the message, then reset to a new note.
         setTimeout(() => {
@@ -977,7 +1164,7 @@ class VoiceNotesApp {
       this.updateVoicePlayer();
 
       this.closeMyNotes();
-      this.recordingStatus.textContent = 'Note loaded. Recording is disabled.';
+      this.recordingStatus.textContent = i18n.t('status.noteLoaded');
   }
 
   private async deleteNote(id: number, element: HTMLElement) {
@@ -1299,7 +1486,7 @@ class VoiceNotesApp {
         this.audioContext = null;
       }
 
-      this.recordingStatus.textContent = 'Requesting microphone access...';
+      this.recordingStatus.textContent = i18n.t('voice.microphoneAccess');
 
       try {
         // Start with basic audio constraints that worked before
@@ -1337,11 +1524,13 @@ class VoiceNotesApp {
       }
 
       // Try different audio formats, preferring formats that work better
+      // Order by compatibility: webm is most widely supported for recording
       const formats = [
+        { mimeType: 'audio/webm;codecs=opus', ext: 'webm' },
+        { mimeType: 'audio/webm', ext: 'webm' },
+        { mimeType: 'audio/mp4;codecs=aac', ext: 'm4a' },
         { mimeType: 'audio/mpeg', ext: 'mp3' },
         { mimeType: 'audio/wav', ext: 'wav' },
-        { mimeType: 'audio/mp4', ext: 'm4a' },
-        { mimeType: 'audio/webm', ext: 'webm' },
       ];
 
       let formatUsed = null;
@@ -1363,8 +1552,10 @@ class VoiceNotesApp {
       // Fallback to default if no specific format worked
       if (!this.mediaRecorder) {
         this.mediaRecorder = new MediaRecorder(this.stream);
-        formatUsed = { mimeType: 'audio/webm', ext: 'webm' }; // Default assumption
-        console.log('✅ MediaRecorder created with default settings');
+        // Use the actual mimeType from MediaRecorder, fallback to webm if not available
+        const actualMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+        formatUsed = { mimeType: actualMimeType, ext: 'webm' };
+        console.log(`✅ MediaRecorder created with default settings, actual MIME: ${actualMimeType}`);
       }
 
       this.mediaRecorder.ondataavailable = (event) => {
@@ -1385,7 +1576,7 @@ class VoiceNotesApp {
           });
           this.processAudio(audioBlob).catch((err) => {
             console.error('Error processing audio:', err);
-            this.recordingStatus.textContent = 'Error processing recording';
+            this.recordingStatus.textContent = i18n.t('errors.processingError');
           });
         } else {
           this.recordingStatus.textContent =
@@ -1469,7 +1660,7 @@ class VoiceNotesApp {
 
       this.recordButton.classList.remove('recording');
       this.recordButton.setAttribute('title', 'Start Recording');
-      this.recordingStatus.textContent = 'Processing audio...';
+      this.recordingStatus.textContent = i18n.t('status.processing');
     } else {
       if (!this.isRecording) this.stopLiveDisplay();
     }
@@ -1485,7 +1676,7 @@ class VoiceNotesApp {
     try {
       URL.createObjectURL(audioBlob);
 
-      this.recordingStatus.textContent = 'Converting audio...';
+      this.recordingStatus.textContent = i18n.t('status.processing');
 
       const reader = new FileReader();
       const readResult = new Promise<string>((resolve, reject) => {
@@ -1528,7 +1719,7 @@ class VoiceNotesApp {
     mimeType: string,
   ): Promise<void> {
     try {
-      this.recordingStatus.textContent = 'Getting transcription...';
+      this.recordingStatus.textContent = i18n.t('status.transcribing');
 
       const ai = this.getGenAI();
       const recordLanguageCode = SUPPORTED_LANGUAGES[this.recordLanguage];
@@ -1562,7 +1753,7 @@ class VoiceNotesApp {
             const hasCredits = this.creditIntegration.creditManager.hasSufficientCredits(cost);
             
             if (!hasCredits) {
-              this.recordingStatus.textContent = 'Insufficient credits for polishing';
+              this.recordingStatus.textContent = i18n.t('status.insufficientCredits');
               this.creditIntegration.creditUI.showPurchaseModal();
               return;
             }
@@ -1570,7 +1761,7 @@ class VoiceNotesApp {
             // Show cost preview for polishing only
             const confirmed = await this.creditIntegration.creditUI.getCostPreview('polish');
             if (!confirmed) {
-              this.recordingStatus.textContent = 'Polishing cancelled';
+              this.recordingStatus.textContent = i18n.t('status.polishingCancelled');
               return;
             }
           } catch (error) {
@@ -1610,7 +1801,7 @@ class VoiceNotesApp {
         this.rawTranscription.textContent.trim() === '' ||
         this.rawTranscription.classList.contains('placeholder-active')
       ) {
-        this.recordingStatus.textContent = 'No transcription to polish';
+        this.recordingStatus.textContent = i18n.t('errors.noTranscription');
         this.polishedNote.innerHTML =
           '<p><em>No transcription available to polish.</em></p>';
         this.updatePlaceholderState(this.polishedNote);
@@ -1618,7 +1809,7 @@ class VoiceNotesApp {
         return;
       }
 
-      this.recordingStatus.textContent = 'Polishing note...';
+      this.recordingStatus.textContent = i18n.t('status.polishing');
 
       const prompt = `Take this raw transcription and create a polished, well-formatted note.
                     Remove filler words (um, uh, like), repetitions, and false starts.
@@ -1923,7 +2114,7 @@ ${polishedNoteMarkdown}`;
     this.updateTranslationButtonsState();
     this.updateVoicePlayer();
 
-    this.recordingStatus.textContent = 'Ready to record';
+    this.recordingStatus.textContent = i18n.t('status.readyToRecord');
 
     if (this.isRecording) {
       this.mediaRecorder?.stop();
@@ -2071,9 +2262,9 @@ ${polishedNoteMarkdown}`;
       this.playAudioFromBase64(this.currentNote.audioData, this.currentNote.audioMimeType || 'audio/webm');
     } else {
       console.log('⚠️ No original audio data found, cannot play recording');
-      this.recordingStatus.textContent = 'No original recording available to play';
+      this.recordingStatus.textContent = i18n.t('status.noRecording');
       setTimeout(() => {
-        this.recordingStatus.textContent = 'Ready to record';
+        this.recordingStatus.textContent = i18n.t('status.readyToRecord');
       }, 2000);
     }
   }
@@ -2155,13 +2346,23 @@ ${polishedNoteMarkdown}`;
 
   // Raw Voice Player Methods
   private updateVoicePlayer(): void {
+    console.log('🔄 Updating voice player...');
+    console.log('📊 Current note has audio:', !!this.currentNote?.audioData);
+    console.log('🎛️ Raw voice play button found:', !!this.rawVoicePlayButton);
+    console.log('📊 Recording info element found:', !!this.recordingInfo);
+    
     if (this.currentNote?.audioData) {
+      console.log('✅ Audio data available, enabling player');
+      console.log('📊 Audio data length:', this.currentNote.audioData.length);
+      console.log('🎧 Audio MIME type:', this.currentNote.audioMimeType);
+      
       this.rawVoicePlayButton.disabled = false;
       this.recordingInfo.textContent = `${this.currentNote.audioMimeType || 'audio'} recording available`;
       this.voicePlayerMessage.style.display = 'none';
     } else {
+      console.log('❌ No audio data, disabling player');
       this.rawVoicePlayButton.disabled = true;
-      this.recordingInfo.textContent = 'No recording available';
+      this.recordingInfo.textContent = i18n.t('player.noRecordingAvailable');
       this.voicePlayerMessage.style.display = 'block';
       this.resetVoicePlayer();
     }
@@ -2178,55 +2379,148 @@ ${polishedNoteMarkdown}`;
   }
 
   private startVoicePlayback(): void {
-    if (!this.currentNote?.audioData) return;
+    if (!this.currentNote?.audioData) {
+      console.log('❌ No audio data available for playback');
+      return;
+    }
+
+    console.log('🎵 Starting voice playback...');
 
     if (this.currentAudio) {
-      this.currentAudio.play();
+      console.log('🎵 Resuming existing audio');
+      this.currentAudio.play().catch((error) => {
+        console.error('Error resuming audio playback:', error);
+        this.recordingInfo.textContent = 'Playback error - ' + error.message;
+      });
       this.updatePlayButton(true);
       return;
     }
 
     try {
+      console.log('🔄 Creating new audio from base64...');
       // Convert base64 to blob
       const base64Data = this.currentNote.audioData.split(',')[1] || this.currentNote.audioData;
+      console.log(`📊 Base64 data length: ${base64Data.length} characters`);
+      
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: this.currentNote.audioMimeType || 'audio/webm' });
+      let mimeType = this.currentNote.audioMimeType || 'audio/webm';
+      console.log(`🎧 Original MIME type: ${mimeType}`);
+      
+      // Clean up problematic MIME types for better compatibility
+      if (mimeType.includes('codecs=opus') || mimeType.includes('audio/mp4;codecs')) {
+        // Fallback to generic webm for better compatibility
+        mimeType = 'audio/webm';
+        console.log(`🔄 Cleaned MIME type for compatibility: ${mimeType}`);
+      }
+      
+      const blob = new Blob([byteArray], { type: mimeType });
+      console.log(`💾 Blob created, size: ${blob.size} bytes`);
       
       const url = URL.createObjectURL(blob);
       this.currentAudio = new Audio(url);
       this.currentAudio.volume = this.volumeSlider.valueAsNumber / 100;
+      
+      console.log('🔊 Volume set to:', this.currentAudio.volume);
 
-      this.currentAudio.addEventListener('loadedmetadata', () => {
-        this.totalTimeDisplay.textContent = this.formatTime(this.currentAudio!.duration);
+      this.setupAudioEventListeners(url);
+
+      this.currentAudio.addEventListener('error', (e) => {
+        console.error('❌ Error playing audio:', e);
+        console.error('Audio error details:', this.currentAudio?.error);
+        
+        // Try fallback with generic audio MIME type
+        console.log('🔄 Trying fallback with generic audio type...');
+        URL.revokeObjectURL(url);
+        this.tryAudioFallback(byteArray);
       });
 
-      this.currentAudio.addEventListener('timeupdate', () => {
-        const progress = (this.currentAudio!.currentTime / this.currentAudio!.duration) * 100;
-        this.progressFill.style.width = `${progress}%`;
-        this.currentTimeDisplay.textContent = this.formatTime(this.currentAudio!.currentTime);
+      this.currentAudio.addEventListener('canplay', () => {
+        console.log('✅ Audio can play - starting playback');
       });
 
-      this.currentAudio.addEventListener('ended', () => {
+      console.log('▶️ Starting audio playback...');
+      this.currentAudio.play().then(() => {
+        console.log('✅ Audio playback started successfully');
+        this.updatePlayButton(true);
+      }).catch((error) => {
+        console.error('❌ Error starting playback:', error);
+        this.recordingInfo.textContent = 'Playback failed - ' + error.message;
         this.resetVoicePlayer();
         URL.revokeObjectURL(url);
       });
-
-      this.currentAudio.addEventListener('error', () => {
-        console.error('Error playing audio');
-        this.resetVoicePlayer();
-        URL.revokeObjectURL(url);
-      });
-
-      this.currentAudio.play();
-      this.updatePlayButton(true);
     } catch (error) {
-      console.error('Error creating audio from base64:', error);
+      console.error('❌ Error creating audio from base64:', error);
+      this.recordingInfo.textContent = 'Audio creation error - ' + (error as Error).message;
     }
+  }
+
+  private tryAudioFallback(byteArray: Uint8Array): void {
+    // Try different MIME types as fallbacks
+    const fallbackTypes = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', ''];
+    
+    for (const fallbackType of fallbackTypes) {
+      try {
+        console.log(`🔄 Trying fallback MIME type: ${fallbackType || 'no type'}`);
+        const fallbackBlob = new Blob([byteArray], { type: fallbackType });
+        const fallbackUrl = URL.createObjectURL(fallbackBlob);
+        const fallbackAudio = new Audio(fallbackUrl);
+        
+        fallbackAudio.addEventListener('canplaythrough', () => {
+          console.log(`✅ Fallback successful with: ${fallbackType || 'no type'}`);
+          this.currentAudio = fallbackAudio;
+          this.currentAudio.volume = this.volumeSlider.valueAsNumber / 100;
+          this.setupAudioEventListeners(fallbackUrl);
+          this.currentAudio.play().catch(error => {
+            console.error('Error playing fallback audio:', error);
+            URL.revokeObjectURL(fallbackUrl);
+          });
+        });
+        
+        fallbackAudio.addEventListener('error', () => {
+          URL.revokeObjectURL(fallbackUrl);
+        });
+        
+        // Try to load the audio
+        fallbackAudio.load();
+        return; // Exit after first attempt
+      } catch (error) {
+        console.log(`❌ Fallback ${fallbackType} failed:`, error);
+      }
+    }
+    
+    // If all fallbacks fail
+    this.recordingInfo.textContent = 'Audio format not supported by browser';
+    this.resetVoicePlayer();
+  }
+
+  private setupAudioEventListeners(url: string): void {
+    if (!this.currentAudio) return;
+    
+    this.currentAudio.addEventListener('loadedmetadata', () => {
+      if (this.currentAudio) {
+        console.log('✅ Audio metadata loaded, duration:', this.currentAudio.duration);
+        this.totalTimeDisplay.textContent = this.formatTime(this.currentAudio.duration);
+      }
+    });
+
+    this.currentAudio.addEventListener('timeupdate', () => {
+      if (this.currentAudio) {
+        const progress = (this.currentAudio.currentTime / this.currentAudio.duration) * 100;
+        this.progressFill.style.width = `${progress}%`;
+        this.currentTimeDisplay.textContent = this.formatTime(this.currentAudio.currentTime);
+      }
+    });
+
+    this.currentAudio.addEventListener('ended', () => {
+      console.log('🏁 Audio playback ended');
+      this.resetVoicePlayer();
+      URL.revokeObjectURL(url);
+    });
   }
 
   private pauseVoicePlayback(): void {
@@ -2260,6 +2554,18 @@ ${polishedNoteMarkdown}`;
     if (this.currentAudio) {
       this.currentAudio.volume = this.volumeSlider.valueAsNumber / 100;
     }
+  }
+
+  private handleProgressBarClick(event: MouseEvent): void {
+    if (!this.currentAudio || !this.currentAudio.duration) return;
+    
+    const rect = this.progressBar.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickPercent = clickX / rect.width;
+    const newTime = clickPercent * this.currentAudio.duration;
+    
+    this.currentAudio.currentTime = newTime;
+    console.log(`🎯 Seeking to: ${this.formatTime(newTime)}`);
   }
 
   private formatTime(seconds: number): string {

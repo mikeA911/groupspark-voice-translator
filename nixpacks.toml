@@ -1,5 +1,4 @@
-[providers]
-nodejs = "18"
+providers = ["node"]
 
 [variables]
 NODE_ENV = "production"
